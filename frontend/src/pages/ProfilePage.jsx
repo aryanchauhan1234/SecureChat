@@ -87,7 +87,7 @@ const ProfilePage = () => {
             <h2 className="text-lg font-medium  mb-4">Account Information</h2>
             <div className="space-y-3 text-sm">
               <div className="flex items-center justify-between py-2 border-b border-zinc-700">
-                <span>Member Since</span>
+                <span>Last login</span>
                 <span>{authUser.createdAt?.split("T")[0]}</span>
               </div>
               <div className="flex items-center justify-between py-2">
