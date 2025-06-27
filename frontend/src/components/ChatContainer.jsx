@@ -1,10 +1,9 @@
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { useEffect, useRef } from "react";
-
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
-import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
 
 const ChatContainer = () => {
@@ -13,19 +12,48 @@ const ChatContainer = () => {
     getMessages,
     isMessagesLoading,
     selectedUser,
+    inviteStatus,
+    checkInviteStatus,
+    sendInvite,
+    respondToInvite,
     subscribeToMessages,
     unsubscribeFromMessages,
+    setInviteStatus,
+    inviteSentBy,
   } = useChatStore();
 
-  const { authUser } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
 
+  // Check invite status on mount/change
   useEffect(() => {
     if (!selectedUser?._id) return;
-    getMessages();
-    subscribeToMessages();
-    return () => unsubscribeFromMessages();
+    checkInviteStatus();
   }, [selectedUser?._id]);
+
+  // Setup socket listener for invite accepted (sender)
+  useEffect(() => {
+    if (!socket || !selectedUser?._id) return;
+
+    socket.on("inviteAccepted", ({ receiverId }) => {
+      if (receiverId === selectedUser._id) {
+        setInviteStatus("accepted");
+      }
+    });
+
+    return () => {
+      socket.off("inviteAccepted");
+    };
+  }, [socket, selectedUser?._id]);
+
+  // Start chat after invite is accepted
+  useEffect(() => {
+    if (inviteStatus === "accepted") {
+      getMessages();
+      subscribeToMessages();
+      return () => unsubscribeFromMessages();
+    }
+  }, [inviteStatus]);
 
   useEffect(() => {
     if (messageEndRef.current) {
@@ -33,20 +61,92 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
-  if (isMessagesLoading) {
-    return (
-      <div className="flex-1 flex flex-col overflow-auto">
-        <ChatHeader />
+  // Skeleton loader
+if (isMessagesLoading) {
+  return (
+    <div className="flex-1 flex flex-col overflow-auto bg-white dark:bg-base-200">
+      <ChatHeader />
+      <div className="flex-1 px-4 py-6 space-y-4">
         <MessageSkeleton />
-        <MessageInput />
+        <div className="flex justify-center mt-6">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+      <MessageInput />
+    </div>
+  );
+}
+
+  // Invite logic
+if (inviteStatus === "none") {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center bg-base-100 dark:bg-base-200">
+      <p className="mb-4 text-lg font-medium">You haven't invited this user yet.</p>
+      <div className="flex gap-4">
+        <button onClick={sendInvite} className="btn btn-primary">
+          Send Chat Invite
+        </button>
+        <button onClick={checkInviteStatus} className="btn btn-outline btn-primary">
+          Check Invite Status
+        </button>
+      </div>
+    </div>
+  );
+}
+
+if (inviteStatus === "pending") {
+  const isReceiver = inviteSentBy && inviteSentBy !== authUser._id;
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center bg-base-100 dark:bg-base-200 p-6">
+      {isReceiver ? (
+        <>
+          <p className="mb-4 text-lg font-medium">This user invited you to chat.</p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => respondToInvite("accepted")}
+              className="btn btn-success"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => respondToInvite("rejected")}
+              className="btn btn-error"
+            >
+              Reject
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-lg text-warning mb-4">
+            Waiting for user to accept your chat invite...
+          </p>
+          <button
+            onClick={checkInviteStatus}
+            className="btn btn-outline btn-primary"
+          >
+            Refresh Status
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+  if (inviteStatus === "rejected") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-base-100 dark:bg-base-200">
+        <p className="text-lg text-error">This user has rejected your chat invite.</p>
       </div>
     );
   }
 
+  // Chat UI
   return (
     <div className="flex-1 flex flex-col overflow-auto bg-white dark:bg-base-200 transition-colors duration-300">
       <ChatHeader />
-
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 sm:px-8 sm:py-6">
         {messages.map((message, index) => {
           const isSender = message.isSender ?? (message.senderId === authUser._id);
@@ -58,7 +158,6 @@ const ChatContainer = () => {
               ref={isLast ? messageEndRef : null}
               className={`chat ${isSender ? "chat-end" : "chat-start"} items-end`}
             >
-              {/* Avatar */}
               <div className="chat-image avatar">
                 <div className="w-10 h-10 rounded-full ring-2 ring-primary ring-offset-1">
                   <img
@@ -72,12 +171,10 @@ const ChatContainer = () => {
                 </div>
               </div>
 
-              {/* Timestamp */}
               <div className="chat-header mb-1 text-sm text-gray-500 dark:text-gray-400 font-medium">
                 <time>{formatMessageTime(message.createdAt)}</time>
               </div>
 
-              {/* Message Bubble */}
               <div
                 className={`chat-bubble max-w-xs sm:max-w-sm whitespace-pre-wrap ${
                   isSender
@@ -104,7 +201,6 @@ const ChatContainer = () => {
           );
         })}
       </div>
-
       <MessageInput />
     </div>
   );
