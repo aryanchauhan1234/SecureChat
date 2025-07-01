@@ -17,7 +17,7 @@ const NoChatSelected = () => {
         </div>
         <img src="/grp chat.svg" alt="" />
         {/* Welcome Text */}
-        <h2 className="text-2xl font-bold text-[#5257dd]">Welcome to Chatty!</h2>
+        <h2 className="text-2xl font-bold text-[#5257dd]">Welcome to SecureChat!</h2>
         <p className="text-base-content/60 text-white">
           Select a conversation from the sidebar to start chatting
         </p>
