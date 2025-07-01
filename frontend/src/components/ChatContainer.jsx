@@ -60,7 +60,7 @@ const ChatContainer = () => {
   // 🔄 Show spinner loader on delay / fetch
   if (
     inviteStatus === "accepted" &&
-    (isMessagesLoading || (selectedUser && messages.length === 0))
+    (isMessagesLoading )
   ) {
     return (
       <div className="flex-1 flex flex-col bg-white dark:bg-base-200">
