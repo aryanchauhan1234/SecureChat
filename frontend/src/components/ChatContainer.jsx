@@ -1,76 +1,28 @@
-import React from "react";
-import { useEffect, useRef } from "react";
-import { FixedSizeList as List } from "react-window";
-import throttle from "lodash.throttle";
-import ChatHeader from "./ChatHeader";
-import MessageInput from "./MessageInput";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { useEffect, useRef } from "react";
+import ChatHeader from "./ChatHeader";
+import MessageInput from "./MessageInput";
 import { formatMessageTime } from "../lib/utils";
 
-const MessageBubble = React.memo(({ message, isSender }) => {
-  return (
-    <div className={`chat ${isSender ? "chat-end" : "chat-start"} items-end`}>
-      <div className="chat-image avatar">
-        <div className="w-10 h-10 rounded-full ring-2 ring-primary ring-offset-1">
-          <img
-            src={isSender ? "/avatar.png" : "/avatar.png"} // Optional: replace with real image URLs
-            alt="profile"
-          />
-        </div>
-      </div>
-
-      <div className="chat-header mb-1 text-sm text-gray-500 dark:text-gray-400 font-medium">
-        <time>{formatMessageTime(message.createdAt)}</time>
-      </div>
-
-      <div
-        className={`chat-bubble max-w-xs sm:max-w-sm whitespace-pre-wrap ${
-          isSender
-            ? "bg-gradient-to-tr from-indigo-500 to-blue-500 text-white"
-            : "bg-gray-200 dark:bg-neutral text-black dark:text-white"
-        } shadow-md rounded-2xl px-4 py-2`}
-      >
-        {message.image && (
-          <img
-            loading="lazy"
-            src={message.image}
-            alt="Attachment"
-            className="rounded-md mb-2 max-w-[180px] sm:max-w-[240px]"
-          />
-        )}
-        <p>
-          {message.text || (
-            <span className="text-xs italic text-red-400">[Message could not be displayed]</span>
-          )}
-        </p>
-      </div>
-    </div>
-  );
-});
-
 const ChatContainer = () => {
-  const messages = useChatStore((s) => s.messages);
-  const getMessages = useChatStore((s) => s.getMessages);
-  const isMessagesLoading = useChatStore((s) => s.isMessagesLoading);
-  const selectedUser = useChatStore((s) => s.selectedUser);
-  const inviteStatus = useChatStore((s) => s.inviteStatus);
-  const checkInviteStatus = useChatStore((s) => s.checkInviteStatus);
-  const sendInvite = useChatStore((s) => s.sendInvite);
-  const respondToInvite = useChatStore((s) => s.respondToInvite);
-  const subscribeToMessages = useChatStore((s) => s.subscribeToMessages);
-  const unsubscribeFromMessages = useChatStore((s) => s.unsubscribeFromMessages);
-  const setInviteStatus = useChatStore((s) => s.setInviteStatus);
-  const inviteSentBy = useChatStore((s) => s.inviteSentBy);
+  const {
+    messages,
+    getMessages,
+    isMessagesLoading,
+    selectedUser,
+    inviteStatus,
+    checkInviteStatus,
+    sendInvite,
+    respondToInvite,
+    subscribeToMessages,
+    unsubscribeFromMessages,
+    setInviteStatus,
+    inviteSentBy,
+  } = useChatStore();
 
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
-
-  const scrollToBottom = throttle(() => {
-    if (messageEndRef.current) {
-      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, 200);
 
   useEffect(() => {
     if (!selectedUser?._id) return;
@@ -86,7 +38,9 @@ const ChatContainer = () => {
       }
     });
 
-    return () => socket.off("inviteAccepted");
+    return () => {
+      socket.off("inviteAccepted");
+    };
   }, [socket, selectedUser?._id]);
 
   useEffect(() => {
@@ -98,9 +52,12 @@ const ChatContainer = () => {
   }, [inviteStatus, selectedUser?._id]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
+  // 🔄 Show spinner loader on delay / fetch
   if (inviteStatus === "accepted" && isMessagesLoading) {
     return (
       <div className="flex-1 flex flex-col bg-white dark:bg-base-200">
@@ -108,7 +65,9 @@ const ChatContainer = () => {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center">
             <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading messages...</p>
+            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+              Loading messages...
+            </p>
           </div>
         </div>
         <MessageInput />
@@ -116,6 +75,7 @@ const ChatContainer = () => {
     );
   }
 
+  // 🚫 Invite not sent
   if (inviteStatus === "none") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center bg-base-100 dark:bg-base-200">
@@ -128,8 +88,10 @@ const ChatContainer = () => {
     );
   }
 
+  // ⏳ Invite pending
   if (inviteStatus === "pending") {
     const isReceiver = inviteSentBy && inviteSentBy !== authUser._id;
+
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center bg-base-100 dark:bg-base-200 p-6">
         {isReceiver ? (
@@ -150,6 +112,7 @@ const ChatContainer = () => {
     );
   }
 
+  // ❌ Invite rejected
   if (inviteStatus === "rejected") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-base-100 dark:bg-base-200">
@@ -158,28 +121,63 @@ const ChatContainer = () => {
     );
   }
 
+  // 💬 Main chat UI
   return (
     <div className="flex-1 flex flex-col overflow-auto bg-white dark:bg-base-200 transition-colors duration-300">
       <ChatHeader />
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-6">
-        <List
-          height={window.innerHeight - 240}
-          itemCount={messages.length}
-          itemSize={140}
-          width={"100%"}
-        >
-          {({ index, style }) => {
-            const message = messages[index];
-            const isSender = message.isSender ?? (message.senderId === authUser._id);
-            const isLast = index === messages.length - 1;
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 sm:px-8 sm:py-6">
+        {messages.map((message, index) => {
+          const isSender = message.isSender ?? (message.senderId === authUser._id);
+          const isLast = index === messages.length - 1;
 
-            return (
-              <div style={style} key={message._id} ref={isLast ? messageEndRef : null}>
-                <MessageBubble message={message} isSender={isSender} />
+          return (
+            <div
+              key={message._id}
+              ref={isLast ? messageEndRef : null}
+              className={`chat ${isSender ? "chat-end" : "chat-start"} items-end`}
+            >
+              <div className="chat-image avatar">
+                <div className="w-10 h-10 rounded-full ring-2 ring-primary ring-offset-1">
+                  <img
+                    src={
+                      isSender
+                        ? authUser.profilePic || "/avatar.png"
+                        : selectedUser?.profilePic || "/avatar.png"
+                    }
+                    alt="profile"
+                  />
+                </div>
               </div>
-            );
-          }}
-        </List>
+
+              <div className="chat-header mb-1 text-sm text-gray-500 dark:text-gray-400 font-medium">
+                <time>{formatMessageTime(message.createdAt)}</time>
+              </div>
+
+              <div
+                className={`chat-bubble max-w-xs sm:max-w-sm whitespace-pre-wrap ${
+                  isSender
+                    ? "bg-gradient-to-tr from-indigo-500 to-blue-500 text-white"
+                    : "bg-gray-200 dark:bg-neutral text-black dark:text-white"
+                } shadow-md rounded-2xl px-4 py-2`}
+              >
+                {message.image && (
+                  <img
+                    src={message.image}
+                    alt="Attachment"
+                    className="rounded-md mb-2 max-w-[180px] sm:max-w-[240px]"
+                  />
+                )}
+                <p>
+                  {message.text || (
+                    <span className="text-xs italic text-red-400">
+                      [Message could not be displayed]
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
       <MessageInput />
     </div>
